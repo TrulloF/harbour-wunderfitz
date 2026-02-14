@@ -1085,7 +1085,7 @@ Page {
                                     linkColor: Theme.highlightColor
                                     wrapMode: Text.Wrap
                                     textFormat: Text.StyledText
-                                    text: qsTr("The Curiosity feature - taking a picture and automatically translating all recognized text on it - needs Microsoft Azure API keys to work. Please obtain API keys for the <a href=\"https://azure.microsoft.com/en-gb/services/cognitive-services/computer-vision/\">Computer Vision</a> and the <a href=\"https://azure.microsoft.com/en-gb/services/cognitive-services/translator-text-api/\">Translator Text</a> API, enter them on the settings page and have fun!")
+                                    text: qsTr("The Curiosity feature - taking a picture and automatically translating all recognized text on it - needs Microsoft Azure API keys to work. Please obtain API keys for <a href=\"https://azure.microsoft.com/en-us/products/ai-services/ai-vision\">Azure AI Vision</a> and the <a href=\"https://azure.microsoft.com/en-us/products/ai-services/ai-translator\">Azure AI Translator</a> API, enter them on the settings page and have fun!")
 
                                     onLinkActivated: Qt.openUrlExternally(link);
                                 }

@@ -189,18 +189,16 @@ CloudApi *Curiosity::getCloudApi()
 void Curiosity::handleOcrProcessingSuccessful(const QString &fileName, const QJsonObject &result)
 {
     qDebug() << "[Curiosity] Processing OCR result..." << fileName;
-    QJsonArray regionArray = result.value("regions").toArray();
+    QJsonObject readResult = result.value("readResult").toObject();
+    QJsonArray blockArray = readResult.value("blocks").toArray();
     QString completeText;
-    foreach (const QJsonValue &region, regionArray) {
-        QJsonArray lineArray = region.toObject().value("lines").toArray();
+    foreach (const QJsonValue &block, blockArray) {
+        QJsonArray lineArray = block.toObject().value("lines").toArray();
         foreach (const QJsonValue &line, lineArray) {
-            QJsonArray wordArray = line.toObject().value("words").toArray();
-            foreach (const QJsonValue &word, wordArray) {
-                if (!completeText.isEmpty()) {
-                    completeText.append(" ");
-                }
-                completeText.append(word.toObject().value("text").toString());
+            if (!completeText.isEmpty()) {
+                completeText.append(" ");
             }
+            completeText.append(line.toObject().value("text").toString());
         }
     }
     qDebug() << completeText;
