@@ -28,6 +28,8 @@ Page {
 
     property int activeTabId: 0;
     property bool interactionHintDisplayed : dictionaryModel.isInteractionHintDisplayed()
+    property string lastOriginal: ""
+    property string lastTranslation: ""
 
     function toggleBusyIndicator() {
         busyIndicator.running = heinzelnisseModel.isSearchInProgress()
@@ -50,12 +52,24 @@ Page {
             dictionariesButtonLandscape.isActive = true;
             wunderfitzButtonPortrait.isActive = false;
             wunderfitzButtonLandscape.isActive = false;
+            resultButtonPortrait.isActive = false;
+            resultButtonLandscape.isActive = false;
             break;
         case 1:
             dictionariesButtonPortrait.isActive = false;
             dictionariesButtonLandscape.isActive = false;
             wunderfitzButtonPortrait.isActive = true;
             wunderfitzButtonLandscape.isActive = true;
+            resultButtonPortrait.isActive = false;
+            resultButtonLandscape.isActive = false;
+            break;
+        case 2:
+            dictionariesButtonPortrait.isActive = false;
+            dictionariesButtonLandscape.isActive = false;
+            wunderfitzButtonPortrait.isActive = false;
+            wunderfitzButtonLandscape.isActive = false;
+            resultButtonPortrait.isActive = true;
+            resultButtonLandscape.isActive = true;
             break;
         default:
             console.log("Some strange navigation happened!")
@@ -79,6 +93,16 @@ Page {
             viewsSlideshow.opacity = 0;
             slideshowVisibleTimer.goToTab(1);
             openTab(1);
+        }
+    }
+
+    function handleResultClicked() {
+        if (titlePage.activeTabId === 2) {
+            resultFlickable.scrollToTop();
+        } else {
+            viewsSlideshow.opacity = 0;
+            slideshowVisibleTimer.goToTab(2);
+            openTab(2);
         }
     }
 
@@ -123,6 +147,16 @@ Page {
                 visible: titlePage.activeTabId === 0
                 text: qsTr("Dictionaries")
                 onClicked: pageStack.push(dictionariesPage)
+            }
+            MenuItem {
+                visible: titlePage.activeTabId === 2
+                text: qsTr("Copy translation to clipboard")
+                onClicked: Clipboard.text = titlePage.lastTranslation
+            }
+            MenuItem {
+                visible: titlePage.activeTabId === 2
+                text: qsTr("Copy original to clipboard")
+                onClicked: Clipboard.text = titlePage.lastOriginal
             }
         }
 
@@ -416,7 +450,11 @@ Page {
                                     onTranslationSuccessful: {
                                         wunderfitzView.isProcessing = false;
                                         previewImage.visible = false;
-                                        pageStack.push(Qt.resolvedUrl("../pages/TextPage.qml"), {"original": curiosity.getTranslatedText(), "translation": text});
+                                        titlePage.lastOriginal = curiosity.getTranslatedText();
+                                        titlePage.lastTranslation = text;
+                                        viewsSlideshow.opacity = 0;
+                                        slideshowVisibleTimer.goToTab(2);
+                                        openTab(2);
                                     }
                                     onTranslationError: {
                                         wunderfitzView.isProcessing = false;
@@ -1126,6 +1164,63 @@ Page {
                         }
 
                     }
+
+                    Item {
+                        id: resultView
+                        width: viewsSlideshow.width
+                        height: viewsSlideshow.height
+
+                        SilicaFlickable {
+                            id: resultFlickable
+                            contentHeight: resultColumn.height
+                            anchors.fill: parent
+
+                            Column {
+                                id: resultColumn
+                                width: parent.width
+
+                                PageHeader {
+                                    title: qsTr("Result")
+                                }
+
+                                SectionHeader {
+                                    text: qsTr("Original")
+                                }
+
+                                TextArea {
+                                    id: resultOriginalText
+                                    width: parent.width
+                                    wrapMode: TextEdit.Wrap
+                                    font.pixelSize: Theme.fontSizeMedium
+                                    text: titlePage.lastOriginal
+                                    Connections {
+                                        target: titlePage
+                                        onLastOriginalChanged: resultOriginalText.text = titlePage.lastOriginal
+                                    }
+                                }
+
+                                SectionHeader {
+                                    text: qsTr("Translation")
+                                }
+
+                                TextArea {
+                                    id: resultTranslationText
+                                    width: parent.width
+                                    wrapMode: TextEdit.Wrap
+                                    font.pixelSize: Theme.fontSizeMedium
+                                    text: titlePage.lastTranslation
+                                    Connections {
+                                        target: titlePage
+                                        onLastTranslationChanged: resultTranslationText.text = titlePage.lastTranslation
+                                    }
+                                }
+
+                                Item { width: parent.width; height: Theme.paddingLarge }
+                            }
+
+                            VerticalScrollDecorator {}
+                        }
+                    }
                 }
 
                 Timer {
@@ -1189,7 +1284,7 @@ Page {
 
                         Item {
                             id: dictionariesButtonColumnLandscape
-                            height: parent.height / 2
+                            height: parent.height / 3
                             width: parent.width - Theme.paddingMedium
                             DictionaryButton {
                                 id: dictionariesButtonLandscape
@@ -1200,12 +1295,43 @@ Page {
 
                         Item {
                             id: wunderfitzButtonColumnLandscape
-                            height: parent.height / 2
+                            height: parent.height / 3
                             width: parent.width - Theme.paddingMedium
                             WunderfitzButton {
                                 id: wunderfitzButtonLandscape
                                 visible: (isActive || !navigationColumn.squeezed)
                                 anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        Item {
+                            id: resultButtonColumnLandscape
+                            height: parent.height / 3
+                            width: parent.width - Theme.paddingMedium
+                            Column {
+                                id: resultButtonLandscape
+                                property bool isActive: false
+                                width: parent.width
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: (isActive || !navigationColumn.squeezed)
+                                IconButton {
+                                    icon.source: resultButtonLandscape.isActive ? "image://theme/icon-m-note?" + Theme.highlightColor : "image://theme/icon-m-note?" + Theme.primaryColor
+                                    height: Theme.iconSizeMedium
+                                    width: Theme.iconSizeMedium
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    onClicked: handleResultClicked()
+                                }
+                                Label {
+                                    text: qsTr("Result")
+                                    font.pixelSize: Theme.fontSizeTiny
+                                    color: resultButtonLandscape.isActive ? Theme.highlightColor : Theme.primaryColor
+                                    truncationMode: TruncationMode.Fade
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: handleResultClicked()
+                                    }
+                                }
                             }
                         }
 
@@ -1237,7 +1363,7 @@ Page {
                     width: parent.width
                     Item {
                         id: dictionariesButtonColumn
-                        width: parent.width / 2
+                        width: parent.width / 3
                         height: parent.height - Theme.paddingMedium
                         DictionaryButton {
                             id: dictionariesButtonPortrait
@@ -1247,11 +1373,41 @@ Page {
 
                     Item {
                         id: notificationsButtonColumn
-                        width: parent.width / 2
+                        width: parent.width / 3
                         height: parent.height - navigationRowSeparator.height
                         WunderfitzButton {
                             id: wunderfitzButtonPortrait
                             anchors.top: parent.top
+                        }
+                    }
+
+                    Item {
+                        id: resultButtonColumn
+                        width: parent.width / 3
+                        height: parent.height - navigationRowSeparator.height
+                        Column {
+                            id: resultButtonPortrait
+                            property bool isActive: false
+                            width: parent.width
+                            anchors.top: parent.top
+                            IconButton {
+                                icon.source: resultButtonPortrait.isActive ? "image://theme/icon-m-note?" + Theme.highlightColor : "image://theme/icon-m-note?" + Theme.primaryColor
+                                height: Theme.iconSizeMedium
+                                width: Theme.iconSizeMedium
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                onClicked: handleResultClicked()
+                            }
+                            Label {
+                                text: qsTr("Result")
+                                font.pixelSize: Theme.fontSizeTiny
+                                color: resultButtonPortrait.isActive ? Theme.highlightColor : Theme.primaryColor
+                                truncationMode: TruncationMode.Fade
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: handleResultClicked()
+                                }
+                            }
                         }
                     }
                 }
