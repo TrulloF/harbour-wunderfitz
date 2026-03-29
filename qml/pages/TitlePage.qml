@@ -30,6 +30,7 @@ Page {
     property bool interactionHintDisplayed : dictionaryModel.isInteractionHintDisplayed()
     property string lastOriginal: ""
     property string lastTranslation: ""
+    property bool hasResult: lastOriginal !== "" || lastTranslation !== ""
 
     function toggleBusyIndicator() {
         busyIndicator.running = heinzelnisseModel.isSearchInProgress()
@@ -1179,23 +1180,18 @@ Page {
                                 id: resultColumn
                                 width: parent.width
 
-                                PageHeader {
-                                    title: qsTr("Result")
-                                }
-
                                 SectionHeader {
                                     text: qsTr("Original")
                                 }
 
                                 TextArea {
-                                    id: resultOriginalText
+                                    id: originalTextArea
                                     width: parent.width
                                     wrapMode: TextEdit.Wrap
-                                    font.pixelSize: Theme.fontSizeMedium
                                     text: titlePage.lastOriginal
                                     Connections {
                                         target: titlePage
-                                        onLastOriginalChanged: resultOriginalText.text = titlePage.lastOriginal
+                                        onLastOriginalChanged: originalTextArea.text = titlePage.lastOriginal
                                     }
                                 }
 
@@ -1204,18 +1200,15 @@ Page {
                                 }
 
                                 TextArea {
-                                    id: resultTranslationText
+                                    id: translationTextArea
                                     width: parent.width
                                     wrapMode: TextEdit.Wrap
-                                    font.pixelSize: Theme.fontSizeMedium
                                     text: titlePage.lastTranslation
                                     Connections {
                                         target: titlePage
-                                        onLastTranslationChanged: resultTranslationText.text = titlePage.lastTranslation
+                                        onLastTranslationChanged: translationTextArea.text = titlePage.lastTranslation
                                     }
                                 }
-
-                                Item { width: parent.width; height: Theme.paddingLarge }
                             }
 
                             VerticalScrollDecorator {}
@@ -1246,7 +1239,12 @@ Page {
                     clip: true
                     model: viewsModel
                     onCurrentIndexChanged: {
-                        openTab(currentIndex);
+                        if (currentIndex === 2 && !titlePage.hasResult) {
+                            slideshowVisibleTimer.goToTab(1);
+                            openTab(1);
+                        } else {
+                            openTab(currentIndex);
+                        }
                     }
                     Behavior on opacity { NumberAnimation {} }
                     onOpacityChanged: {
@@ -1308,6 +1306,7 @@ Page {
                             id: resultButtonColumnLandscape
                             height: parent.height / 3
                             width: parent.width - Theme.paddingMedium
+                            visible: titlePage.hasResult
                             Column {
                                 id: resultButtonLandscape
                                 property bool isActive: false
@@ -1385,6 +1384,7 @@ Page {
                         id: resultButtonColumn
                         width: parent.width / 3
                         height: parent.height - navigationRowSeparator.height
+                        visible: titlePage.hasResult
                         Column {
                             id: resultButtonPortrait
                             property bool isActive: false

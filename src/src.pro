@@ -13,6 +13,8 @@ target.path = /usr/bin/
 TARGET = harbour-wunderfitz
 TEMPLATE = app
 
+LIBS += -lsailfishsecrets
+
 SOURCES += harbour-wunderfitz.cpp \
     databasemanager.cpp \
     heinzelnisseelement.cpp \
