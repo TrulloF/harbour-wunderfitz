@@ -27,12 +27,21 @@ CloudApi::CloudApi(QNetworkAccessManager *manager, Curiosity *parent)
     this->networkAccessManager = manager;
 }
 
+QString CloudApi::stripTrailingSlashes(const QString &path)
+{
+    QString strippedPath = path;
+    while (strippedPath.endsWith('/')) {
+        strippedPath.chop(1);
+    }
+    return strippedPath;
+}
+
 void CloudApi::opticalCharacterRecognition(const QString &imagePath, const QString &sourceLanguage)
 {
     qDebug() << "CloudApi::opticalCharacterRecognition" << imagePath << sourceLanguage;
 
-    QUrl url = QUrl(curiosity->getComputerVisionEndpoint());
-    url.setPath(url.path() + API_COMPUTER_VISION_ENDPOINT_PATH);
+    QUrl url = QUrl(curiosity->getComputerVisionEndpoint().trimmed());
+    url.setPath(stripTrailingSlashes(url.path()) + API_COMPUTER_VISION_ENDPOINT_PATH);
     QUrlQuery urlQuery = QUrlQuery();
     urlQuery.addQueryItem("api-version", "2024-02-01");
     urlQuery.addQueryItem("features", "read");
@@ -53,7 +62,6 @@ void CloudApi::opticalCharacterRecognition(const QString &imagePath, const QStri
     QNetworkReply *reply = networkAccessManager->post(request, rawImage);
     reply->setObjectName(imagePath);
 
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(handleOcrUploadError(QNetworkReply::NetworkError)));
     connect(reply, SIGNAL(finished()), this, SLOT(handleOcrUploadFinished()));
     connect(reply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(handleOcrUploadProgress(qint64,qint64)));
 }
@@ -62,8 +70,18 @@ void CloudApi::translate(const QString &text, const QString &targetLanguage)
 {
     qDebug() << "CloudApi::translate" << text << targetLanguage;
 
-    QUrl url = QUrl(curiosity->getTranslatorTextEndpoint());
-    url.setPath(url.path() + API_TRANSLATOR_TEXT_ENDPOINT_PATH);
+    QUrl url = QUrl(curiosity->getTranslatorTextEndpoint().trimmed());
+    QString path = stripTrailingSlashes(url.path());
+    // Custom domain endpoints (https://<name>.cognitiveservices.azure.com/) serve the Translator below
+    // /translator/text/v3.0, the global endpoint serves it at the root
+    if (url.host().endsWith(API_CUSTOM_DOMAIN_HOST_SUFFIX, Qt::CaseInsensitive)
+            && !path.contains(API_TRANSLATOR_TEXT_CUSTOM_DOMAIN_PATH, Qt::CaseInsensitive)) {
+        path += API_TRANSLATOR_TEXT_CUSTOM_DOMAIN_PATH;
+    }
+    if (!path.endsWith(API_TRANSLATOR_TEXT_ENDPOINT_PATH)) {
+        path += API_TRANSLATOR_TEXT_ENDPOINT_PATH;
+    }
+    url.setPath(path);
     QUrlQuery urlQuery = QUrlQuery();
     urlQuery.addQueryItem("api-version", "3.0");
     urlQuery.addQueryItem("to", targetLanguage);
@@ -84,7 +102,6 @@ void CloudApi::translate(const QString &text, const QString &targetLanguage)
 
     QNetworkReply *reply = networkAccessManager->post(request, jsonAsByteArray);
 
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(handleTranslateError(QNetworkReply::NetworkError)));
     connect(reply, SIGNAL(finished()), this, SLOT(handleTranslateFinished()));
 }
 
@@ -95,21 +112,26 @@ void CloudApi::handleOcrUploadProgress(qint64 bytesSent, qint64 bytesTotal)
     emit ocrUploadStatus(reply->objectName(), bytesSent, bytesTotal);
 }
 
-void CloudApi::handleOcrUploadError(QNetworkReply::NetworkError error)
+QString CloudApi::getAzureErrorMessage(QNetworkReply *reply)
 {
-    QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
-    reply->deleteLater();
-    QString responseBody = QString::fromUtf8(reply->readAll());
-    qWarning() << "CloudApi::handleOcrUploadError:" << (int)error << reply->errorString() << responseBody;
-    QJsonDocument errorDoc = QJsonDocument::fromJson(responseBody.toUtf8());
-    QString errorMessage = reply->errorString();
-    if (errorDoc.isObject()) {
-        QJsonObject errorObj = errorDoc.object().value("error").toObject();
-        if (!errorObj.isEmpty()) {
-            errorMessage = errorObj.value("message").toString();
+    QByteArray responseBody = reply->readAll();
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    qWarning() << "CloudApi::getAzureErrorMessage:" << reply->error() << statusCode << reply->errorString() << responseBody;
+
+    QJsonDocument errorDocument = QJsonDocument::fromJson(responseBody);
+    if (errorDocument.isObject()) {
+        QJsonObject errorObject = errorDocument.object().value("error").toObject();
+        QString message = errorObject.value("message").toString();
+        if (!message.isEmpty()) {
+            return QString("Azure (%1): %2").arg(statusCode).arg(message);
         }
     }
-    emit ocrUploadError(reply->objectName(), errorMessage);
+    if (statusCode != 0) {
+        QString reason = reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString();
+        QString body = QString::fromUtf8(responseBody).simplified().left(200);
+        return QString("Azure (%1 %2) %3").arg(statusCode).arg(reason).arg(body).trimmed();
+    }
+    return reply->errorString();
 }
 
 void CloudApi::handleOcrUploadFinished()
@@ -118,6 +140,17 @@ void CloudApi::handleOcrUploadFinished()
     QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
     reply->deleteLater();
     if (reply->error() != QNetworkReply::NoError) {
+        if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isNull()) {
+            // Azure closes the connection while the image is still uploading when it rejects the request
+            // (e.g. an invalid key), so there is no response. An empty request gets the reason right away.
+            qWarning() << "CloudApi::handleOcrUploadFinished: no response," << reply->errorString() << "- probing Azure for the reason";
+            QNetworkReply *probeReply = networkAccessManager->post(reply->request(), QByteArray());
+            probeReply->setObjectName(reply->objectName());
+            probeReply->setProperty("originalError", reply->errorString());
+            connect(probeReply, SIGNAL(finished()), this, SLOT(handleOcrProbeFinished()));
+        } else {
+            emit ocrUploadError(reply->objectName(), getAzureErrorMessage(reply));
+        }
         return;
     }
 
@@ -129,21 +162,18 @@ void CloudApi::handleOcrUploadFinished()
     }
 }
 
-void CloudApi::handleTranslateError(QNetworkReply::NetworkError error)
+void CloudApi::handleOcrProbeFinished()
 {
+    qDebug() << "CloudApi::handleOcrProbeFinished";
     QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
     reply->deleteLater();
-    QString responseBody = QString::fromUtf8(reply->readAll());
-    qWarning() << "CloudApi::handleTranslateError:" << (int)error << reply->errorString() << responseBody;
-    QString errorMessage = reply->errorString();
-    QJsonDocument errorDoc = QJsonDocument::fromJson(responseBody.toUtf8());
-    if (errorDoc.isObject()) {
-        QJsonObject errorObj = errorDoc.object().value("error").toObject();
-        if (!errorObj.isEmpty()) {
-            errorMessage = errorObj.value("message").toString();
-        }
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    // 400 only complains about the missing image, i.e. key and endpoint were accepted
+    if (statusCode == 0 || statusCode == 400) {
+        emit ocrUploadError(reply->objectName(), reply->property("originalError").toString());
+    } else {
+        emit ocrUploadError(reply->objectName(), getAzureErrorMessage(reply));
     }
-    emit translateError(errorMessage);
 }
 
 void CloudApi::handleTranslateFinished()
@@ -152,6 +182,7 @@ void CloudApi::handleTranslateFinished()
     QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
     reply->deleteLater();
     if (reply->error() != QNetworkReply::NoError) {
+        emit translateError(getAzureErrorMessage(reply));
         return;
     }
 

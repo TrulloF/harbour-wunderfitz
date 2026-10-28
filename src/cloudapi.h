@@ -36,6 +36,8 @@
 
 const char API_COMPUTER_VISION_ENDPOINT_PATH[] = "/computervision/imageanalysis:analyze";
 const char API_TRANSLATOR_TEXT_ENDPOINT_PATH[] = "/translate";
+const char API_TRANSLATOR_TEXT_CUSTOM_DOMAIN_PATH[] = "/translator/text/v3.0";
+const char API_CUSTOM_DOMAIN_HOST_SUFFIX[] = ".cognitiveservices.azure.com";
 
 class Curiosity;
 
@@ -57,12 +59,13 @@ signals:
 
 public slots:
     void handleOcrUploadProgress(qint64 bytesSent, qint64 bytesTotal);
-    void handleOcrUploadError(QNetworkReply::NetworkError error);
     void handleOcrUploadFinished();
-    void handleTranslateError(QNetworkReply::NetworkError error);
+    void handleOcrProbeFinished();
     void handleTranslateFinished();
 
 private:
+    QString getAzureErrorMessage(QNetworkReply *reply);
+    static QString stripTrailingSlashes(const QString &path);
 
     QNetworkAccessManager *networkAccessManager;
     QSettings settings;
