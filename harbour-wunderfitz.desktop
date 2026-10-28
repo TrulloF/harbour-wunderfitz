@@ -10,3 +10,8 @@ Name=Wunderfitz
 # Remember to comment out the following line, if you do not want to use
 # a different app name in German locale (de).
 #Name[de]=harbour-wunderfitz
+
+[X-Sailjail]
+# No OrganizationName/ApplicationName: keeps the legacy ~/.config and ~/.local/share/harbour-wunderfitz directories
+# Default profile permissions plus Secrets
+Permissions=Audio;Bluetooth;Camera;Compatibility;Internet;Location;MediaIndexing;Microphone;NFC;RemovableMedia;UserDirs;WebView;Secrets

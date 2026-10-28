@@ -61,6 +61,13 @@
     </message>
 </context>
 <context>
+    <name>Curiosity</name>
+    <message>
+        <source>Could not save API key securely, stored it unencrypted instead: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DictionariesPage</name>
     <message>
         <source>Dictionaries</source>
@@ -130,6 +137,10 @@
     <message>
         <source>Settings</source>
         <translation>Inställningar</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Spara</translation>
     </message>
     <message>
         <source>Cloud API</source>

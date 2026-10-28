@@ -4,7 +4,7 @@ LIBS += -lz -lquazip -L$$OUT_PWD/../quazip/quazip
 QT += sql core
 
 DEPENDPATH += . ../quazip/quazip
-INCLUDEPATH += . ../quazip/quazip
+INCLUDEPATH += . ../quazip/quazip /usr/include/Sailfish
 QMAKE_LFLAGS += -Wl,-rpath,\\$${LITERAL_DOLLAR}$${LITERAL_DOLLAR}ORIGIN/../share/harbour-wunderfitz/lib
 
 INSTALLS += target

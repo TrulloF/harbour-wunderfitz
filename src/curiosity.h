@@ -38,7 +38,8 @@ const char SETTINGS_TRANSLATOR_TEXT_ENDPOINT[] = "settings/translatorTextEndpoin
 const char SETTINGS_TRANSLATOR_TEXT_REGION[] = "settings/translatorTextRegion";
 
 // Sailfish Secrets identifiers
-const char SECRETS_COLLECTION_NAME[] = "harbour-wunderfitz-secrets";
+// The SQLCipher plugin only accepts alphanumeric collection names
+const char SECRETS_COLLECTION_NAME[] = "wunderfitz";
 const char SECRETS_SECRET_CV_KEY[]    = "computerVisionKey";
 const char SECRETS_SECRET_TR_KEY[]    = "translatorTextKey";
 
@@ -84,6 +85,7 @@ signals:
     void ocrProgress(const int &percentCompleted);
     void ocrError(const QString &errorMessage);
     void ocrSuccessful();
+    void secretsError(const QString &errorMessage);
 
 public slots:
     void handleTranslationSuccessful(const QJsonArray &result);
@@ -105,7 +107,11 @@ private:
 
     void processCapture();
     QString secretsReadKey(const QString &secretName);
-    bool secretsWriteKey(const QString &secretName, const QString &value);
+    bool secretsWriteKey(const QString &secretName, const QString &value, QString *errorMessage);
+    QString readKey(const QString &settingsKey, const QString &secretName);
+    void writeKey(const QString &settingsKey, const QString &secretName, const QString &value);
+    static QString sanitizeKey(const QString &key);
+    bool secretsUnavailable = false;
 
 };
 

@@ -32,6 +32,7 @@
 #include <Secrets/createcollectionrequest.h>
 #include <Secrets/storesecretrequest.h>
 #include <Secrets/storedsecretrequest.h>
+#include <Secrets/deletesecretrequest.h>
 
 #include "cloudapi.h"
 
@@ -132,26 +133,12 @@ QString Curiosity::getTranslatedText()
 void Curiosity::setComputerVisionKey(const QString &computerVisionKey)
 {
     qDebug() << "[Curiosity] Set computer vision key";
-    secretsWriteKey(QLatin1String(SECRETS_SECRET_CV_KEY), computerVisionKey);
+    writeKey(QLatin1String(SETTINGS_COMPUTER_VISION_KEY), QLatin1String(SECRETS_SECRET_CV_KEY), computerVisionKey);
 }
 
 QString Curiosity::getComputerVisionKey()
 {
-    if (settings.contains(SETTINGS_COMPUTER_VISION_KEY)) {
-        QString legacyValue = settings.value(SETTINGS_COMPUTER_VISION_KEY).toString();
-        if (!legacyValue.isEmpty()) {
-            if (secretsWriteKey(QLatin1String(SECRETS_SECRET_CV_KEY), legacyValue)) {
-                settings.remove(SETTINGS_COMPUTER_VISION_KEY);
-                qDebug() << "[Curiosity] Migrated computer vision key to Secrets";
-            } else {
-                qWarning() << "[Curiosity] Migration of computer vision key failed; retaining QSettings value";
-                return legacyValue;
-            }
-        } else {
-            settings.remove(SETTINGS_COMPUTER_VISION_KEY);
-        }
-    }
-    return secretsReadKey(QLatin1String(SECRETS_SECRET_CV_KEY));
+    return readKey(QLatin1String(SETTINGS_COMPUTER_VISION_KEY), QLatin1String(SECRETS_SECRET_CV_KEY));
 }
 
 void Curiosity::setComputerVisionEndpoint(const QString &computerVisionEndpoint)
@@ -168,26 +155,12 @@ QString Curiosity::getComputerVisionEndpoint()
 void Curiosity::setTranslatorTextKey(const QString &translatorTextKey)
 {
     qDebug() << "[Curiosity] Set translator text key";
-    secretsWriteKey(QLatin1String(SECRETS_SECRET_TR_KEY), translatorTextKey);
+    writeKey(QLatin1String(SETTINGS_TRANSLATOR_TEXT_KEY), QLatin1String(SECRETS_SECRET_TR_KEY), translatorTextKey);
 }
 
 QString Curiosity::getTranslatorTextKey()
 {
-    if (settings.contains(SETTINGS_TRANSLATOR_TEXT_KEY)) {
-        QString legacyValue = settings.value(SETTINGS_TRANSLATOR_TEXT_KEY).toString();
-        if (!legacyValue.isEmpty()) {
-            if (secretsWriteKey(QLatin1String(SECRETS_SECRET_TR_KEY), legacyValue)) {
-                settings.remove(SETTINGS_TRANSLATOR_TEXT_KEY);
-                qDebug() << "[Curiosity] Migrated translator text key to Secrets";
-            } else {
-                qWarning() << "[Curiosity] Migration of translator text key failed; retaining QSettings value";
-                return legacyValue;
-            }
-        } else {
-            settings.remove(SETTINGS_TRANSLATOR_TEXT_KEY);
-        }
-    }
-    return secretsReadKey(QLatin1String(SECRETS_SECRET_TR_KEY));
+    return readKey(QLatin1String(SETTINGS_TRANSLATOR_TEXT_KEY), QLatin1String(SECRETS_SECRET_TR_KEY));
 }
 
 void Curiosity::setTranslatorTextEndpoint(const QString &translatorTextEndpoint)
@@ -212,13 +185,61 @@ QString Curiosity::getTranslatorTextRegion()
     return settings.value(SETTINGS_TRANSLATOR_TEXT_REGION, DEFAULT_TRANSLATOR_TEXT_REGION).toString();
 }
 
-bool Curiosity::secretsWriteKey(const QString &secretName, const QString &value)
+QString Curiosity::sanitizeKey(const QString &key)
 {
+    // Keys pasted from the Azure portal may contain both keys separated by a line break
+    return key.trimmed().section(QLatin1Char('\n'), 0, 0).trimmed();
+}
+
+void Curiosity::writeKey(const QString &settingsKey, const QString &secretName, const QString &value)
+{
+    QString key = sanitizeKey(value);
+    QString errorMessage;
+    if (secretsWriteKey(secretName, key, &errorMessage)) {
+        settings.remove(settingsKey);
+        secretsUnavailable = false;
+        return;
+    }
+    qWarning() << "[Curiosity] Storing" << secretName << "in QSettings, Secrets not available:" << errorMessage;
+    secretsUnavailable = true;
+    settings.setValue(settingsKey, key);
+    emit secretsError(tr("Could not save API key securely, stored it unencrypted instead: %1").arg(errorMessage));
+}
+
+QString Curiosity::readKey(const QString &settingsKey, const QString &secretName)
+{
+    if (settings.contains(settingsKey)) {
+        QString legacyValue = sanitizeKey(settings.value(settingsKey).toString());
+        if (legacyValue.isEmpty()) {
+            settings.remove(settingsKey);
+        } else if (secretsUnavailable) {
+            return legacyValue;
+        } else {
+            QString errorMessage;
+            if (secretsWriteKey(secretName, legacyValue, &errorMessage)) {
+                settings.remove(settingsKey);
+                qDebug() << "[Curiosity] Migrated" << secretName << "to Secrets";
+            } else {
+                qWarning() << "[Curiosity] Migration of" << secretName << "failed; retaining QSettings value:" << errorMessage;
+                secretsUnavailable = true;
+                return legacyValue;
+            }
+        }
+    }
+    if (secretsUnavailable) {
+        return QString();
+    }
+    return sanitizeKey(secretsReadKey(secretName));
+}
+
+bool Curiosity::secretsWriteKey(const QString &secretName, const QString &value, QString *errorMessage)
+{
+    // The encrypted storage plugin also does the encryption, so it has to be used for both
     Sailfish::Secrets::CreateCollectionRequest createRequest;
     createRequest.setManager(&secretManager);
     createRequest.setCollectionName(QLatin1String(SECRETS_COLLECTION_NAME));
     createRequest.setStoragePluginName(Sailfish::Secrets::SecretManager::DefaultEncryptedStoragePluginName);
-    createRequest.setEncryptionPluginName(Sailfish::Secrets::SecretManager::DefaultEncryptionPluginName);
+    createRequest.setEncryptionPluginName(Sailfish::Secrets::SecretManager::DefaultEncryptedStoragePluginName);
     createRequest.setAccessControlMode(Sailfish::Secrets::SecretManager::OwnerOnlyMode);
     createRequest.setCollectionLockType(Sailfish::Secrets::CreateCollectionRequest::DeviceLock);
     createRequest.setDeviceLockUnlockSemantic(Sailfish::Secrets::SecretManager::DeviceLockKeepUnlocked);
@@ -229,6 +250,7 @@ bool Curiosity::secretsWriteKey(const QString &secretName, const QString &value)
     if (createResult.code() == Sailfish::Secrets::Result::Failed
             && createResult.errorCode() != Sailfish::Secrets::Result::CollectionAlreadyExistsError) {
         qWarning() << "[Curiosity] Failed to create secrets collection:" << createResult.errorMessage();
+        *errorMessage = createResult.errorMessage();
         return false;
     }
 
@@ -236,6 +258,14 @@ bool Curiosity::secretsWriteKey(const QString &secretName, const QString &value)
         secretName,
         QLatin1String(SECRETS_COLLECTION_NAME),
         Sailfish::Secrets::SecretManager::DefaultEncryptedStoragePluginName);
+    // Storing does not overwrite an existing secret, so remove it first (fails harmlessly if absent)
+    Sailfish::Secrets::DeleteSecretRequest deleteRequest;
+    deleteRequest.setManager(&secretManager);
+    deleteRequest.setIdentifier(id);
+    deleteRequest.setUserInteractionMode(Sailfish::Secrets::SecretManager::SystemInteraction);
+    deleteRequest.startRequest();
+    deleteRequest.waitForFinished();
+
     Sailfish::Secrets::Secret secret(id);
     secret.setData(value.toUtf8());
 
@@ -249,6 +279,7 @@ bool Curiosity::secretsWriteKey(const QString &secretName, const QString &value)
     Sailfish::Secrets::Result storeResult = storeRequest.result();
     if (storeResult.code() == Sailfish::Secrets::Result::Failed) {
         qWarning() << "[Curiosity] Failed to store secret" << secretName << ":" << storeResult.errorMessage();
+        *errorMessage = storeResult.errorMessage();
         return false;
     }
     return true;

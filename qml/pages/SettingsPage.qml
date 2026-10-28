@@ -20,7 +20,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 
-Page {
+Dialog {
     id: settingsPage
     allowedOrientations: Orientation.All
 
@@ -30,6 +30,14 @@ Page {
         translatorTextKeyField.text = curiosity.getTranslatorTextKey();
         translatorTextEndpointField.text = curiosity.getTranslatorTextEndpoint();
         translatorTextRegionField.text = curiosity.getTranslatorTextRegion();
+    }
+
+    onAccepted: {
+        curiosity.setComputerVisionKey(computerVisionKeyField.text);
+        curiosity.setComputerVisionEndpoint(computerVisionEndpointField.text);
+        curiosity.setTranslatorTextKey(translatorTextKeyField.text);
+        curiosity.setTranslatorTextEndpoint(translatorTextEndpointField.text);
+        curiosity.setTranslatorTextRegion(translatorTextRegionField.text);
     }
 
     SilicaFlickable {
@@ -42,8 +50,9 @@ Page {
             width: settingsPage.width
             spacing: Theme.paddingLarge
 
-            PageHeader {
+            DialogHeader {
                 title: qsTr("Settings")
+                acceptText: qsTr("Save")
             }
 
             SectionHeader {
@@ -55,7 +64,6 @@ Page {
                 width: parent.width
                 placeholderText: qsTr("Azure AI Vision API Key")
                 label: placeholderText
-                onTextChanged: curiosity.setComputerVisionKey(text)
             }
 
             TextField {
@@ -63,7 +71,6 @@ Page {
                 width: parent.width
                 placeholderText: qsTr("Azure AI Vision Endpoint")
                 label: placeholderText
-                onTextChanged: curiosity.setComputerVisionEndpoint(text)
             }
 
             TextField {
@@ -71,7 +78,6 @@ Page {
                 width: parent.width
                 placeholderText: qsTr("Azure Translator Text API Key")
                 label: placeholderText
-                onTextChanged: curiosity.setTranslatorTextKey(text)
             }
 
             TextField {
@@ -79,7 +85,6 @@ Page {
                 width: parent.width
                 placeholderText: qsTr("Azure Translator Text Endpoint")
                 label: placeholderText
-                onTextChanged: curiosity.setTranslatorTextEndpoint(text)
             }
 
             TextField {
@@ -87,7 +92,6 @@ Page {
                 width: parent.width
                 placeholderText: qsTr("Azure Translator Text Region")
                 label: placeholderText
-                onTextChanged: curiosity.setTranslatorTextRegion(text)
             }
 
             Label {

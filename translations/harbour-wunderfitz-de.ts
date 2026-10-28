@@ -61,6 +61,13 @@
     </message>
 </context>
 <context>
+    <name>Curiosity</name>
+    <message>
+        <source>Could not save API key securely, stored it unencrypted instead: %1</source>
+        <translation>API-Schlüssel konnte nicht sicher gespeichert werden und wurde unverschlüsselt abgelegt: %1</translation>
+    </message>
+</context>
+<context>
     <name>DictionariesPage</name>
     <message>
         <source>Dictionaries</source>
@@ -130,6 +137,10 @@
     <message>
         <source>Settings</source>
         <translation>Einstellungen</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Speichern</translation>
     </message>
     <message>
         <source>Cloud API</source>

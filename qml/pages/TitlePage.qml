@@ -77,6 +77,15 @@ Page {
         }
     }
 
+    function updateSettingsWarning() {
+        settingsWarningFlickable.visible = !cloudWarningFlickable.visible && ( curiosity.getTranslatorTextKey() === "" || curiosity.getComputerVisionKey() === "" )
+    }
+
+    function openSettings() {
+        var settingsDialog = pageStack.push(Qt.resolvedUrl("../pages/SettingsPage.qml"));
+        settingsDialog.accepted.connect(updateSettingsWarning);
+    }
+
     function handleDictionariesClicked() {
         if (titlePage.activeTabId === 0) {
             homeListView.scrollToTop();
@@ -115,6 +124,11 @@ Page {
         id: titleNotification
     }
 
+    Connections {
+        target: curiosity
+        onSecretsError: titleNotification.show(errorMessage)
+    }
+
     Timer {
         id: searchTimer
         interval: 800
@@ -141,7 +155,7 @@ Page {
             }
             MenuItem {
                 text: qsTr("Settings")
-                onClicked: pageStack.push(Qt.resolvedUrl("../pages/SettingsPage.qml"));
+                onClicked: openSettings()
             }
 
             MenuItem {
@@ -1134,9 +1148,7 @@ Page {
                                     anchors {
                                         horizontalCenter: parent.horizontalCenter
                                     }
-                                    onClicked: {
-                                        pageStack.push(Qt.resolvedUrl("../pages/SettingsPage.qml"));
-                                    }
+                                    onClicked: openSettings()
                                 }
 
                                 Button {
@@ -1144,9 +1156,7 @@ Page {
                                     anchors {
                                         horizontalCenter: parent.horizontalCenter
                                     }
-                                    onClicked: {
-                                        settingsWarningFlickable.visible = !cloudWarningFlickable.visible && ( curiosity.getTranslatorTextKey() === "" || curiosity.getComputerVisionKey() === "" )
-                                    }
+                                    onClicked: updateSettingsWarning()
                                 }
 
                                 Label {
